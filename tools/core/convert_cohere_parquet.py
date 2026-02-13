@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import pathlib
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -21,7 +22,7 @@ def write_neighbors_file(data_frame, neighbors_file):
 
     if len(id_list) != len(neighbors_list):
         logger.error("list size not equal: %d, %d", len(id_list), len(neighbors_list))
-        os._exit(1)
+        sys.exit(1)
 
     for i in range(len(id_list)):
         id_int = id_list[i]
@@ -101,7 +102,7 @@ def gen_vector_files(input_dir, input_file_pattern, output_dir, output_file_name
 
     if not to_append and output_file_name_full.exists():
         logger.error("File exists! File name: %s", output_file_name_full)
-        os._exit(1)
+        sys.exit(1)
 
     write_flag = "a" if to_append else "w"
 
@@ -128,7 +129,7 @@ def gen_neighbor_files(input_dir, input_file_pattern, output_dir, output_file_na
 
     if not to_append and output_file_name_full.exists():
         logger.error("File already exists. File name: %s", output_file_name_full)
-        os._exit(1)
+        sys.exit(1)
 
     write_flag = "a" if to_append else "w"
 
