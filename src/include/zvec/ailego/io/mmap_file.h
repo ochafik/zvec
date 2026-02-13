@@ -161,8 +161,8 @@ class MMapFile {
 
   //! Write data into the storage
   size_t write(const void *data, size_t len) {
-    if (offset_ + len > region_size_) {
-      len = region_size_ - offset_;
+    if (offset_ >= region_size_ || len > region_size_ - offset_) {
+      len = (offset_ >= region_size_) ? 0 : region_size_ - offset_;
     }
     memcpy((uint8_t *)region_ + offset_, data, len);
     offset_ += len;
@@ -171,10 +171,10 @@ class MMapFile {
 
   //! Write data into the storage
   size_t write(size_t off, const void *data, size_t len) {
-    if (off + len > region_size_) {
-      if (off > region_size_) {
-        off = region_size_;
-      }
+    if (off >= region_size_) {
+      return 0;
+    }
+    if (len > region_size_ - off) {
       len = region_size_ - off;
     }
     memcpy((uint8_t *)region_ + off, data, len);
@@ -183,8 +183,8 @@ class MMapFile {
 
   //! Read data from the storage (Zero-copy)
   size_t read(const void **data, size_t len) {
-    if (offset_ + len > region_size_) {
-      len = region_size_ - offset_;
+    if (offset_ >= region_size_ || len > region_size_ - offset_) {
+      len = (offset_ >= region_size_) ? 0 : region_size_ - offset_;
     }
     *data = (uint8_t *)region_ + offset_;
     offset_ += len;
@@ -193,10 +193,11 @@ class MMapFile {
 
   //! Read data from the storage (Zero-copy)
   size_t read(size_t off, const void **data, size_t len) {
-    if (off + len > region_size_) {
-      if (off > region_size_) {
-        off = region_size_;
-      }
+    if (off >= region_size_) {
+      *data = (uint8_t *)region_ + region_size_;
+      return 0;
+    }
+    if (len > region_size_ - off) {
       len = region_size_ - off;
     }
     *data = (uint8_t *)region_ + off;
@@ -205,8 +206,8 @@ class MMapFile {
 
   //! Read data from the storage
   size_t read(void *data, size_t len) {
-    if (offset_ + len > region_size_) {
-      len = region_size_ - offset_;
+    if (offset_ >= region_size_ || len > region_size_ - offset_) {
+      len = (offset_ >= region_size_) ? 0 : region_size_ - offset_;
     }
     memcpy(data, (uint8_t *)region_ + offset_, len);
     offset_ += len;
@@ -215,10 +216,10 @@ class MMapFile {
 
   //! Read data from the storage
   size_t read(size_t off, void *data, size_t len) {
-    if (off + len > region_size_) {
-      if (off > region_size_) {
-        off = region_size_;
-      }
+    if (off >= region_size_) {
+      return 0;
+    }
+    if (len > region_size_ - off) {
       len = region_size_ - off;
     }
     memcpy(data, (uint8_t *)region_ + off, len);
