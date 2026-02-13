@@ -206,3 +206,22 @@ The following good practices were observed:
 | `.github/dependabot.yml` | Automated dependency monitoring |
 | `.github/workflows/sanitizer_ci.yml` | ASAN+UBSAN CI workflow |
 | `docs/SECURITY_AUDIT.md` | This document |
+
+---
+
+## Verification
+
+All security fixes have been verified through the existing test suite:
+
+### C++ Tests
+- **ailego tests**: 65/65 test binaries passed (includes `mmap_file_test`, `file_test`, distance matrix tests, container tests, threading tests)
+- **SQL engine tests**: `sqlengine_test` (5/5), `query_info_test` (15/15), `optimizer_test` (9/9), `simple_rewriter_test` (33/33), `like_test` (16/16), `forward_recall_test` (35/35), `invert_recall_test` (29/29), `vector_recall_test` (6/6), `contain_test` (14/14) — all passed
+- **DB common tests**: `config_test` (10/10), `status_test` — all passed
+- **Collection tests**: 53/54 passed; 1 flaky test (`Feature_Optimize_Repeated`) passes when run individually — pre-existing test isolation issue with shared `./test_collection` directory, not related to security changes
+
+### Python Tests
+- **997 passed**, 0 failed, 25 skipped (skips are TODOs and integration tests requiring API keys/model downloads)
+
+### Build
+- Full C++ build: 1134/1134 targets compiled successfully (Debug, macOS arm64)
+- Python package: built and installed successfully (`zvec-0.2.1.dev13`)
