@@ -163,6 +163,11 @@ class FlatSearcherProvider : public IndexProvider {
           read_size == BATCH_SIZE * feature_size_) {
         uint32_t align_size =
             IndexMeta::AlignSizeof(owner_->meta().data_type());
+        if (align_size == 0) {
+          LOG_ERROR("Invalid align_size (0) for data type");
+          invalid_ = true;
+          return;
+        }
         ReverseTranspose<BATCH_SIZE>(align_size, read_data,
                                      feature_size_ / align_size,
                                      &block_buffer_[0]);
@@ -206,6 +211,10 @@ class FlatSearcherProvider : public IndexProvider {
       }
 
       uint32_t align_size = IndexMeta::AlignSizeof(owner_->meta().data_type());
+      if (align_size == 0) {
+        LOG_ERROR("Invalid align_size (0) for data type");
+        return nullptr;
+      }
       ReverseTranspose<BATCH_SIZE>(
           align_size, read_data, feature_size_ / align_size, &block_buffer_[0]);
       read_data = block_buffer_.data() + ((index % BATCH_SIZE) * feature_size_);
