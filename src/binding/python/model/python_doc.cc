@@ -67,6 +67,10 @@ void ZVecPyDoc::bind_doc(py::module_ &m) {
             py::buffer_info info(py::buffer(b).request());
             const uint8_t *buf = reinterpret_cast<const uint8_t *>(info.ptr);
             size_t size = static_cast<size_t>(info.size);
+            if (!buf || size == 0) {
+              throw std::runtime_error(
+                  "Failed to unpickle Doc: empty or null buffer");
+            }
             Doc::Ptr d = Doc::deserialize(buf, size);
             if (!d) throw std::runtime_error("Failed to unpickle Doc");
             return d;
