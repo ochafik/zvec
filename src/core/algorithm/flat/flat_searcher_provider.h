@@ -14,6 +14,8 @@
 
 #pragma once
 
+#include <cstdint>
+#include <limits>
 #include <memory>
 #include "flat_distance_matrix.h"
 #include "flat_searcher.h"
@@ -35,6 +37,11 @@ class FlatSearcherProvider : public IndexProvider {
     total_vector_count_ =
         features_segment_->data_size() / owner->meta().element_size();
     owner_ = owner;
+    if (feature_size_ > 0 &&
+        BATCH_SIZE > std::numeric_limits<size_t>::max() / feature_size_) {
+      LOG_ERROR("Integer overflow: BATCH_SIZE * feature_size_ exceeds size_t");
+      return;
+    }
     block_buffer_.resize(BATCH_SIZE * feature_size_);
   }
 
@@ -81,8 +88,14 @@ class FlatSearcherProvider : public IndexProvider {
    public:
     //! Constructor
     Iterator(const FlatSearcher<BATCH_SIZE> *owner) {
-      block_buffer_.resize(BATCH_SIZE * owner->meta().element_size());
       feature_size_ = owner->meta().element_size();
+      if (feature_size_ > 0 &&
+          BATCH_SIZE > std::numeric_limits<size_t>::max() / feature_size_) {
+        LOG_ERROR("Integer overflow: BATCH_SIZE * feature_size_ exceeds size_t");
+        invalid_ = true;
+        return;
+      }
+      block_buffer_.resize(BATCH_SIZE * owner->meta().element_size());
       features_segment_ = owner->clone_features_segment();
       total_vector_count_ =
           features_segment_->data_size() / owner->meta().element_size();
@@ -181,8 +194,9 @@ class FlatSearcherProvider : public IndexProvider {
 
     if (owner_->column_major_order() &&
         index < (total_vector_count_ - (total_vector_count_ % BATCH_SIZE))) {
-      uint32_t block_size = feature_size_ * BATCH_SIZE;
-      uint64_t offset = (index - (index % BATCH_SIZE)) * feature_size_;
+      uint64_t block_size = static_cast<uint64_t>(feature_size_) * BATCH_SIZE;
+      uint64_t offset =
+          static_cast<uint64_t>(index - (index % BATCH_SIZE)) * feature_size_;
 
       if (features_segment_->read(offset, &read_data, block_size) !=
           block_size) {
@@ -197,8 +211,9 @@ class FlatSearcherProvider : public IndexProvider {
       read_data = block_buffer_.data() + ((index % BATCH_SIZE) * feature_size_);
 
     } else {
-      if (features_segment_->read(index * feature_size_, &read_data,
-                                  feature_size_) != feature_size_) {
+      uint64_t read_offset = static_cast<uint64_t>(index) * feature_size_;
+      if (features_segment_->read(read_offset, &read_data, feature_size_) !=
+          feature_size_) {
         LOG_ERROR("Failed to read data (%u bytes) from features segment",
                   feature_size_);
         return nullptr;
