@@ -97,7 +97,12 @@ std::optional<bool> DocFilter::get_forward_bit(uint64_t id) const {
   for (int c = 0; c < forward_bitmap_->num_chunks(); c++) {
     const auto &arr = forward_bitmap_->chunk(c);
     if (id < rows_seen + arr->length()) {
-      auto *bool_array = static_cast<arrow::BooleanArray *>(arr.get());
+      auto bool_array =
+          std::dynamic_pointer_cast<arrow::BooleanArray>(arr);
+      if (!bool_array) {
+        LOG_ERROR("Forward bitmap chunk is not a BooleanArray");
+        return std::nullopt;
+      }
       return (*bool_array)[id - rows_seen];
     }
     rows_seen += arr->length();
