@@ -711,8 +711,13 @@ static inline int getpagesize(void) {
 void File::MemoryWarmup(void *addr, size_t len) {
   static int page_size = getpagesize();
 
-  if (addr && len) {
+  if (addr && len && page_size > 0) {
     uint8_t *p = reinterpret_cast<uint8_t *>(addr);
+    // Avoid pointer overflow: compute end safely
+    uintptr_t p_val = reinterpret_cast<uintptr_t>(p);
+    if (len > UINTPTR_MAX - p_val) {
+      return;  // Would overflow, skip warmup
+    }
     uint8_t *end = p + len;
     volatile uint8_t tmp = 0;
 
