@@ -32,8 +32,16 @@ using namespace atn;
 
 namespace zvec::sqlengine {
 
+// Maximum query length to prevent stack overflow from deeply nested expressions.
+static constexpr size_t kMaxQueryLength = 65536;
+
 SQLInfo::Ptr ZVecSQLParser::parse(const std::string &query,
                                   bool need_formatted_tree) {
+  if (query.size() > kMaxQueryLength) {
+    err_msg_ = "query too long (max " + std::to_string(kMaxQueryLength) +
+               " chars)";
+    return nullptr;
+  }
   try {
     ANTLRInputStream input(query);
     CaseChangingCharStream in(&input, true);
@@ -500,6 +508,11 @@ Node::Ptr ZVecSQLParser::handle_id_node(VoidPtr node) {
 
 Node::Ptr ZVecSQLParser::parse_filter(const std::string &filter,
                                       bool need_formatted_tree) {
+  if (filter.size() > kMaxQueryLength) {
+    err_msg_ = "filter too long (max " + std::to_string(kMaxQueryLength) +
+               " chars)";
+    return nullptr;
+  }
   try {
     ANTLRInputStream input(filter);
     CaseChangingCharStream in(&input, true);
