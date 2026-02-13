@@ -8,9 +8,9 @@
 
 ## Executive Summary
 
-zvec is an in-process vector database built on Alibaba's Proxima framework with a C++17 core and Python bindings via pybind11. This audit identified **5 code-level vulnerabilities** (mostly integer overflow in memory operations), **several outdated dependencies** with potential supply chain risk, and **missing security infrastructure** (no SECURITY.md, no fuzzing, no sanitizer CI).
+zvec is an in-process vector database built on Alibaba's Proxima framework with a C++17 core and Python bindings via pybind11. This audit identified **8 code-level vulnerabilities** (mostly integer overflow in memory operations), **several outdated dependencies** with potential supply chain risk, and **missing security infrastructure** (no SECURITY.md, no fuzzing, no sanitizer CI).
 
-All code-level findings have been fixed in this branch. Dependency updates and CI hardening are recommended as follow-up.
+All code-level findings have been fixed in this branch. CI hardening (ASAN/UBSAN, Dependabot) has been added. Dependency version upgrades remain as a follow-up requiring build verification.
 
 ---
 
@@ -84,7 +84,29 @@ All code-level findings have been fixed in this branch. Dependency updates and C
 
 **Impact**: Data corruption on error in utility script.
 
-### 7. Missing Security Policy
+### 7. Divide-by-Zero in ReverseTranspose (MEDIUM)
+
+**File**: `src/core/algorithm/flat/flat_searcher_provider.h`
+**Commit**: `fix(security): guard against divide-by-zero in ReverseTranspose`
+
+**Problem**: `feature_size_ / align_size` is computed without checking `align_size != 0`. If `AlignSizeof()` returns 0 for an unknown data type, this causes undefined behavior.
+
+**Fix**: Added `align_size == 0` guard in both `next_block()` and `get_vector_by_index()`.
+
+**Impact**: Crash from corrupted or unsupported data type in index metadata.
+
+### 8. Unsafe static_cast in DocFilter (MEDIUM)
+
+**File**: `src/db/sqlengine/planner/doc_filter.cc:100`
+**Commit**: `fix(security): replace unsafe static_cast with dynamic_pointer_cast in DocFilter`
+
+**Problem**: `static_cast<arrow::BooleanArray*>(arr.get())` assumes the chunk is always a BooleanArray. If the type doesn't match (e.g. schema mismatch), this is undefined behavior.
+
+**Fix**: Replaced with `std::dynamic_pointer_cast<arrow::BooleanArray>` with null check.
+
+**Impact**: Undefined behavior from type mismatch in forward bitmap.
+
+### 9. Missing Security Policy
 
 **File**: `SECURITY.md` (new)
 **Commit**: `docs(security): add SECURITY.md vulnerability reporting policy`
@@ -92,6 +114,24 @@ All code-level findings have been fixed in this branch. Dependency updates and C
 **Problem**: No vulnerability reporting process existed.
 
 **Fix**: Added SECURITY.md with private reporting instructions, response timelines, and severity classification.
+
+---
+
+## CI/CD Hardening
+
+### 10. Automated Dependency Monitoring
+
+**File**: `.github/dependabot.yml` (new)
+**Commit**: `ci(security): add Dependabot for automated dependency monitoring`
+
+Configured Dependabot to check GitHub Actions and Python (pip) dependencies weekly, ensuring timely awareness of security patches.
+
+### 11. Sanitizer CI Workflow
+
+**File**: `.github/workflows/sanitizer_ci.yml` (new)
+**Commit**: `ci(security): add ASAN and UBSAN sanitizer CI workflow`
+
+Added a CI job that builds C++ code with AddressSanitizer (memory errors) and UndefinedBehaviorSanitizer (UB detection) enabled. Runs on push/PR and weekly schedule.
 
 ---
 
@@ -132,22 +172,22 @@ The following good practices were observed:
 
 ---
 
-## Recommendations for Further Hardening
+## Remaining Recommendations
 
 ### High Priority
-1. **Enable AddressSanitizer (ASAN) in CI** for at least one build configuration to catch memory errors
-2. **Add fuzz testing** for the SQL parser (`parse()`, `parse_filter()`) and Doc deserialization (`Doc::deserialize()`)
-3. **Update critical dependencies** (Protobuf, RocksDB)
+1. **Add fuzz testing** for the SQL parser (`parse()`, `parse_filter()`) and Doc deserialization (`Doc::deserialize()`)
+2. **Update critical dependencies** — Protobuf 3.21.12 and RocksDB 8.1.1 (requires build verification)
 
 ### Medium Priority
-4. **Set up automated dependency monitoring** (Dependabot, Renovate, or OWASP Dependency-Check)
-5. **Add MemorySanitizer (MSAN)** or **UndefinedBehaviorSanitizer (UBSAN)** CI job
-6. **Audit `ReverseTranspose`** for divide-by-zero when `align_size == 0` in flat_searcher_provider.h
+3. **Add resource limits** to Arrow query execution to prevent unbounded memory allocation from malicious queries
+4. **Update remaining dependencies** — yaml-cpp 0.6.3, glog 0.5.0, Arrow 21.0.0
 
-### Low Priority
-7. **Replace `static_cast` with `dynamic_cast`** for ANTLR parse tree downcasts in doc_filter.cc
-8. **Add resource limits** to Arrow query execution to prevent unbounded memory allocation
-9. **Improve exception specificity** in Python extension error handlers (currently catching broad `Exception`)
+### Addressed in This Branch
+- ~~Enable ASAN/UBSAN in CI~~ -> Done (sanitizer_ci.yml)
+- ~~Set up Dependabot~~ -> Done (.github/dependabot.yml)
+- ~~Audit ReverseTranspose divide-by-zero~~ -> Fixed
+- ~~Replace unsafe static_cast in doc_filter~~ -> Fixed
+- ~~Improve exception specificity~~ -> Reviewed; handlers are well-structured (catch broad at API boundary, re-raise as specific types with `from e`)
 
 ---
 
@@ -157,9 +197,12 @@ The following good practices were observed:
 |---|---|
 | `src/include/zvec/ailego/io/mmap_file.h` | Overflow-safe bounds checks |
 | `src/ailego/io/file.cc` | Pointer overflow guard in MemoryWarmup |
-| `src/core/algorithm/flat/flat_searcher_provider.h` | Overflow checks for batch size calculations |
+| `src/core/algorithm/flat/flat_searcher_provider.h` | Overflow checks, divide-by-zero guards |
 | `src/binding/python/model/python_doc.cc` | Buffer validation in pickle unpickle |
 | `src/db/sqlengine/parser/zvec_sql_parser.cc` | Query length limit |
+| `src/db/sqlengine/planner/doc_filter.cc` | Safe dynamic_pointer_cast |
 | `tools/core/convert_cohere_parquet.py` | Safe process exit |
 | `SECURITY.md` | New vulnerability reporting policy |
+| `.github/dependabot.yml` | Automated dependency monitoring |
+| `.github/workflows/sanitizer_ci.yml` | ASAN+UBSAN CI workflow |
 | `docs/SECURITY_AUDIT.md` | This document |
